@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>相册</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script type="text/javascript" src="js/lib/jquery.min.js"></script>
+    <script type="text/javascript" src="js/lib/jquery-ui-1.8.20.custom.min.js"></script>
+    <script type="text/javascript" src="js/lib/jquery.mousewheel.min.js"></script>
+    <script type="text/javascript" src="js/lib/modernizr.2.5.3.min.js"></script>
+    <script type="text/javascript" src="js/lib/hash.js"></script>
+</head>
+<body>
+<div id="photo" class="photo">
+    <div class="head row">
+        <div class="box auto-flip row">
+            <div class="auto-start">自动翻页</div>
+            <div class="auto-stop">停止翻页</div>
+            <div class="time"><input type="text" name="" value="5" id="auto-time" placeholder=""></div>
+            <span>秒</span>
+        </div>
+    </div>
+    <div class="main" id="canvas">
+        <div id="book-zoom">
+            <div class="sj-book">
+                
+            </div>
+        </div>
+    </div>
+    <div class="floor row">
+        <div class="left row">
+            <div class="box fm-cover">封面</div>
+            <div class="box fd-cover">封底</div>
+            <div class="box ml-cover">目录</div>
+            <div class="box music">音乐</div>
+        </div>
+        <div class="right row">
+            <div class="box prev">上一页</div>
+            <div class="box next">下一页</div>
+        </div>
+    </div>
+    <audio src="" autoplay id="myAudio"></audio>
+</div>
+<script type="text/javascript">
+var myAudio = document.getElementById('myAudio');
+var imgArr = [{id: 1, img: 'images/page_start.jpg', mb: 1}]
+var w = 600, h = 820;
+var interval;
+initData()
+function initData(){
+    var len = 14;
+    var page_num = 9;//每个目录显示的最大个数
+    var catalog_num = Math.ceil(len / page_num); //目录个数
+    var start = catalog_num + 2;
+    var n = 1;
+    var id = 2;
+    for(var i = 0; i < catalog_num; i++){
+        var obj = {id: id, img: [], start: start};
+        if(i % 2 === 0){
+            obj.mb = 2;
+        }else{
+            obj.mb = 3;
+        }
+        start += page_num;
+        for(var j = 0; j < page_num; j++){
+            if(n <= len){
+                obj.img.push('images/s'+ n +'.jpg');
+            }else{
+                break;
+            }
+            n++;
+        }
+        imgArr.push(obj)
+        id++;
+    }
+    for(var i = 1; i <= len; i++){
+        imgArr.push({
+            id: id,
+            img: 'images/s'+ i +'.jpg',
+            mb: 1
+        })
+        id++;
+    }
+    imgArr.push({
+        id: id,
+        img: 'images/page_end.jpg',
+        mb: 1
+    })
+    $('.floor').css('width', (w * 2) + 'px')
+    $('.head').css('width', (w * 2) + 'px')
+}
+
+
+function loadApp() {
+    var flipbook = $('.sj-book');
+    
+    if (flipbook.width()==0 || flipbook.height()==0) {
+        setTimeout(loadApp, 10);
+        return;
+    }
+
+    //下方的操作
+    $('.floor .fm-cover').on('click', function(){
+        changePage(1)
+    })
+    $('.floor .ml-cover').on('click', function(){
+        changePage(2)
+    })
+    $('.floor .fd-cover').on('click', function(){
+        changePage(imgArr.length)
+    })
+    $('.floor .prev').on('click', function(){
+        flipbook.turn("previous")
+    })
+    $('.floor .next').on('click', function(){
+        flipbook.turn("next")
+    })
+    $('.floor .music').on('click', function(){
+        if($(this).hasClass('on')){
+            $(this).removeClass('on')
+            myAudio.play()
+        }else{
+            $(this).addClass('on');
+            myAudio.pause()
+        }
+    })
+    //自动播放
+    $('.head .auto-start').on('click', function(){
+        var time = parseInt($('#auto-time').val()) * 1000;
+        $('.head .auto-start').hide()
+        $('.head .auto-stop').show()
+        interval = setInterval(function(){
+            var num = flipbook.turn('page');
+            if(num < imgArr.length){
+                flipbook.turn("next")
+            }else{
+                changePage(1)
+            }
+        }, time)
+    })
+    $('.head .auto-stop').on('click', function(){
+        clearInterval(interval)
+        $('.head .auto-start').show()
+        $('.head .auto-stop').hide()
+    })
+
+    // URIs
+    $('.loading').hide()
+    Hash.on('^page\/([0-9]*)$', {
+        yep: function(path, parts) {
+
+            var page = parts[1];
+
+            if (page!==undefined) {
+                if ($('.sj-book').turn('is'))
+                    $('.sj-book').turn('page', page);
+            }
+
+        },
+        nop: function(path) {
+
+            if ($('.sj-book').turn('is'))
+                $('.sj-book').turn('page', 1);
+        }
+    });
+
+    // Flipbook
+
+    flipbook.bind(($.isTouch) ? 'touchend' : 'click', zoomHandle);
+
+    flipbook.turn({
+        width: 2*w,
+        height: h,
+        elevation: 50,
+        acceleration: !isChrome(),
+        autoCenter: true,
+        gradients: true,
+        duration: 1000,
+        pages: imgArr.length,
+        when: {
+            turning: function(e, page, view) {
+                var book = $(this),
+                    currentPage = book.turn('page'),
+                    pages = book.turn('pages');
+                Hash.go('page/'+page).update();
+            },
+            turned: function(e, page, view) {
+                var book = $(this);
+                book.turn('center');
+            },
+            start: function(e, pageObj) {
+                moveBar(true);
+            },
+            end: function(e, pageObj) {
+                var book = $(this);
+            },
+            missing: function (e, pages) {
+                for (var i = 0; i < pages.length; i++) {
+                    addPage(pages[i], $(this), imgArr[pages[i]-1]);
+                }
+            }
+        }
+    });
+
+    flipbook.addClass('animated');
+
+    // Show canvas
+
+    $('#canvas').css({visibility: ''});
+
+    //改变页数
+    function changePage(index){
+        Hash.go('page/' + index).update();
+        flipbook.turn("page", index);
+    }
+   
+}
+
+$('#canvas').css({visibility: 'hidden'});
+
+
+
+yepnope({
+    test : Modernizr.csstransforms,
+    yep: ['js/lib/turn.js'],
+    nope: ['js/lib/turn.html4.js', 'css/jquery.ui.html4.css', 'css/steve-jobs-html4.css'],
+    both: ['js/steve-jobs.js', 'css/jquery.ui.css', 'css/steve-jobs.css'],
+    complete: loadApp
+});
+
+
+
+</script>
+
+    
+</body>
+</html>
